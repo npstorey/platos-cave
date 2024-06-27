@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Plato's Cave: The Endless Quest for Truth</title>
+<style>
+body,html{margin:0;height:100%;overflow:hidden;font-family:Arial;background:#000;color:#fff}
+#c{width:100%;height:100%}
+#u,#m,#t{position:absolute;padding:10px;background:rgba(0,0,0,.7);border-radius:5px}
+#u{top:10px;left:10px}
+#m{bottom:20px;left:50%;transform:translateX(-50%);text-align:center;max-width:80%}
+#t{top:10px;right:10px}
+#r{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.8);padding:20px;border-radius:10px;text-align:center;display:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="u">Enlightenment: <span id="e">0</span>% | Truths: <span id="d">0</span>/5</div>
+<div id="m"></div>
+<div id="t">WASD/Arrows: Move | Space: Reflect</div>
+<div id="r">
+    <h2>Philosophical Reflection</h2>
+    <p id="rp"></p>
+    <button onclick="closeReflection()">Continue Journey</button>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+let scene, camera, renderer, player, walls=[], orbs=[], shadows=[], truths=[], enlightenment=0, truthsFound=0, isTransitioning=false, is3D=false, isReflecting=false;
+const messages=[
+    "The pursuit of knowledge is endless.",
+    "True wisdom is knowing you know nothing.",
+    "Reality may be more complex than we can comprehend.",
+    "The journey matters more than the destination.",
+    "Enlightenment is a process, not a state.",
+    "Question everything, including your own beliefs.",
+    "The more we learn, the more we realize how much we don't know.",
+    "Truth is multifaceted and ever-changing.",
+    "Our perceptions shape our reality.",
+    "The cave of ignorance has no clear exit."
+];
+const keys={};
+
+function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000011);
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    renderer = new THREE.WebGLRenderer({canvas: document.getElementById('c'), antialias: true});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    player = new THREE.Mesh(
+        new THREE.SphereGeometry(0.3, 32, 32),
+        new THREE.MeshPhongMaterial({color: 0x00ff00, emissive: 0x003300})
+    );
+    player.position.set(0, 0.3, 0);
+    scene.add(player);
+
+    const cave = new THREE.Mesh(
+        new THREE.BoxGeometry(30, 10, 30),
+        new THREE.MeshPhongMaterial({color: 0x333333, side: THREE.BackSide})
+    );
+    cave.position.set(0, 5, 0);
+    scene.add(cave);
+
+    for(let i=0; i<15; i++) {
+        const wall = new THREE.Mesh(
+            new THREE.BoxGeometry(2, 5, 2),
+            new THREE.MeshPhongMaterial({color: 0x555555})
+        );
+        wall.position.set(Math.random()*20-10, 2.5, Math.random()*20-10);
+        scene.add(wall);
+        walls.push(wall);
+    }
+
+    for(let i=0; i<20; i++) {
+        const orb = new THREE.Mesh(
+            new THREE.SphereGeometry(0.2, 32, 32),
+            new THREE.MeshPhongMaterial({color: 0xffff00, emissive: 0xffff00})
+        );
+        orb.position.set(Math.random()*20-10, 0.5, Math.random()*20-10);
+        scene.add(orb);
+        orbs.push(orb);
+    }
+
+    for(let i=0; i<8; i++) {
+        const shadow = new THREE.Mesh(
+            new THREE.PlaneGeometry(2, 4),
+            new THREE.MeshBasicMaterial({
+                map: new THREE.TextureLoader().load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@dev/examples/textures/shadow.png'),
+                transparent: true,
+                opacity: 0.5
+            })
+        );
+        shadow.rotation.x = -Math.PI/2;
+        shadow.position.set(Math.random()*20-10, 0.01, Math.random()*20-10);
+        scene.add(shadow);
+        shadows.push(shadow);
+    }
+
+    for(let i=0; i<5; i++) {
+        const truth = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(0.3),
+            new THREE.MeshPhongMaterial({color: 0x00ffff, emissive: 0x00ffff})
+        );
+        truth.position.set(Math.random()*20-10, 0.5, Math.random()*20-10);
+        truth.visible = false;
+        scene.add(truth);
+        truths.push(truth);
+    }
+
+    scene.add(new THREE.AmbientLight(0x404040));
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    directionalLight.position.set(1, 1, 1);
+    scene.add(directionalLight);
+    const fireLight = new THREE.PointLight(0xff6600, 1, 15);
+    fireLight.position.set(0, 2, -10);
+    scene.add(fireLight);
+
+    camera.position.set(0, 10, 0);
+    camera.lookAt(player.position);
+
+    displayMessage("Seek wisdom and truth, but remember that the journey never truly ends.");
+    animate();
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    if (!isTransitioning && !isReflecting) {
+        updatePlayer();
+        checkCollisions();
+        updateCamera();
+        updateObjects();
+    }
+    renderer.render(scene, camera);
+}
+
+function updatePlayer() {
+    const speed = 0.1 * (1 + enlightenment/100);
+    if(keys.ArrowUp || keys.w) player.position.z -= speed;
+    if(keys.ArrowDown || keys.s) player.position.z += speed;
+    if(keys.ArrowLeft || keys.a) player.position.x -= speed;
+    if(keys.ArrowRight || keys.d) player.position.x += speed;
+    player.position.x = Math.max(-14, Math.min(14, player.position.x));
+    player.position.z = Math.max(-14, Math.min(14, player.position.z));
+}
+
+function checkCollisions() {
+    orbs.forEach((orb, i) => {
+        if(player.position.distanceTo(orb.position) < 0.5) {
+            enlightenment += 5;
+            enlightenment = Math.min(enlightenment, 99); // Cap at 99%
+            document.getElementById('e').textContent = enlightenment;
+            scene.remove(orb);
+            orbs.splice(i, 1);
+            if(enlightenment == 50 && !is3D) transitionTo3D();
+            if(enlightenment >= 20) revealTruths();
+            displayMessage(messages[Math.floor(Math.random()*messages.length)]);
+        }
+    });
+
+    truths.forEach((truth, i) => {
+        if(truth.visible && player.position.distanceTo(truth.position) < 0.5) {
+            scene.remove(truth);
+            truths.splice(i, 1);
+            truthsFound++;
+            document.getElementById('d').textContent = truthsFound;
+            displayMessage("A hidden truth revealed, yet more questions arise.");
+            if(truthsFound >= 5) {
+                showPhilosophicalReflection();
+            }
+        }
+    });
+
+    walls.forEach(wall => {
+        const dx = player.position.x - wall.position.x;
+        const dz = player.position.z - wall.position.z;
+        const distance = Math.sqrt(dx*dx + dz*dz);
+        if(distance < 1.5) {
+            player.position.x += dx/distance * (1.5-distance);
+            player.position.z += dz/distance * (1.5-distance);
+        }
+    });
+}
+
+function updateCamera() {
+    if(is3D) {
+        camera.position.set(player.position.x, player.position.y+2, player.position.z+5);
+        camera.lookAt(player.position);
+    }
+}
+
+function updateObjects() {
+    const time = Date.now() * 0.001;
+    orbs.forEach((orb, i) => {
+        orb.position.y = 0.5 + Math.sin(time + i) * 0.1;
+        orb.rotation.y += 0.01;
+    });
+    shadows.forEach((shadow, i) => {
+        shadow.position.x += Math.sin(time + i) * 0.005;
+        shadow.position.z += Math.cos(time + i) * 0.005;
+    });
+    truths.forEach((truth, i) => {
+        if(truth.visible) {
+            truth.rotation.x += 0.01;
+            truth.rotation.y += 0.02;
+            truth.position.y = 0.5 + Math.sin(time + i) * 0.1;
+        }
+    });
+}
+
+function revealTruths() {
+    truths.forEach(truth => {
+        if(!truth.visible && Math.random() < 0.1) {
+            truth.visible = true;
+            displayMessage("A glimpse of truth appears, but its nature remains elusive.");
+        }
+    });
+}
+
+function transitionTo3D() {
+    isTransitioning = true;
+    displayMessage("Your perception shifts, revealing new dimensions of reality.");
+    const startPosition = new THREE.Vector3(0, 10, 0);
+    const endPosition = new THREE.Vector3(player.position.x, player.position.y+2, player.position.z+5);
+    const startTime = Date.now();
+    function animate() {
+        const progress = Math.min((Date.now() - startTime) / 2000, 1);
+        camera.position.lerpVectors(startPosition, endPosition, progress);
+        camera.lookAt(player.position);
+        if(progress < 1) {
+            requestAnimationFrame(animate);
+        } else {
+            is3D = true;
+            isTransitioning = false;
+            displayMessage("The world appears anew, yet mysteries remain.");
+        }
+        renderer.render(scene, camera);
+    }
+    animate();
+}
+
+function displayMessage(text) {
+    const messageElement = document.getElementById('m');
+    messageElement.textContent = text;
+    messageElement.style.opacity = 1;
+    setTimeout(() => messageElement.style.opacity = 0, 5000);
+}
+
+function showPhilosophicalReflection() {
+    isReflecting = true;
+    document.getElementById('r').style.display = 'block';
+    document.getElementById('rp').textContent = "You've uncovered many truths, yet complete enlightenment remains elusive. Perhaps the true lesson is that the quest for knowledge is never-ending, and wisdom lies in embracing the journey rather than seeking a final destination.";
+}
+
+function closeReflection() {
+    isReflecting = false;
+    document.getElementById('r').style.display = 'none';
+    displayMessage("Your journey continues, for there is always more to learn and understand.");
+}
+
+window.addEventListener('keydown', e => {
+    keys[e.key] = true;
+    if(e.key === ' ') showPhilosophicalReflection();
+});
+window.addEventListener('keyup', e => keys[e.key] = false);
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+init();
+</script>
+</body>
+</html>
